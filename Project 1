@@ -1,0 +1,261 @@
+import itertools
+from IPython.display import Image 
+import requests
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
+import pandas as pd
+import unicodedata
+import re
+import matplotlib.pyplot as plt
+from IPython.core.display import display, HTML
+import json
+from collections import defaultdict
+with open("tennis.json", 'r') as read_file:
+    tennis_data = json.load(read_file)
+
+"""Find the URLs', headline, first full named player, proper tennis score of each article and produce plots for relevant stats"""
+names = []
+task1 = []
+task2 = []
+task3 = []
+task4 = []
+task5 = []
+for dictionary in tennis_data:
+    names.append(dictionary['name'])
+
+total_game_diff = defaultdict(int)
+num_of_articles = defaultdict(int)
+num_of_valid_games = defaultdict(int)
+Articles = []
+
+#Specify the initial page to crawl
+base_url = 'http://comp20008-jh.eng.unimelb.edu.au:9889/main/'
+seed_item = 'index.html'
+
+#taken from unimelb comp20008 workshop 4 on jupyterhub
+seed_url = base_url + seed_item
+page = requests.get(seed_url)
+soup = BeautifulSoup(page.text, 'html.parser')
+
+#This paragraph was taken from unimelb comp20008 workshop 4 on jupyterhub
+visited = {}; 
+visited[seed_url] = True
+pages_visited = 1
+#Remove index.html
+links = soup.findAll('a')
+seed_link = soup.findAll('a', href=re.compile("^index.html"))
+#to_visit_relative = list(set(links) - set(seed_link))
+to_visit_relative = [l for l in links if l not in seed_link]
+# Resolve to absolute urls
+to_visit = []
+for link in to_visit_relative:
+    to_visit.append(urljoin(seed_url, link['href']))
+
+#Find all outbound links on succsesor pages and explore each one 
+while (to_visit):
+    Capital_words = []
+    task1_info = []
+    task2_info = []
+    task3_info = []
+    task5_info = []
+        
+    # consume the list of urls and add the current url to relevant tasks
+    link = to_visit.pop(0)
+    task1_info.append(link)
+    task2_info.append(link)
+    # need to concat with base_url, an example item <a href="catalogue/sharp-objects_997/index.html">
+    page = requests.get(link)
+    #Find Healine of each article
+    soup = BeautifulSoup(page.text, 'html.parser')
+    
+    header = soup.find('h1')
+    title = header.get_text()
+    task1_info.append(title)
+    task2_info.append(title)
+    
+    #This paragraph was taken from unimelb comp20008 workshop 4 on jupyterhub
+    # mark the item as visited, i.e., add to visited list, remove from to_visit
+    visited[link] = True
+    to_visit
+    new_links = soup.findAll('a')
+    for new_link in new_links :
+        new_item = new_link['href']
+        new_url = urljoin(link, new_item)
+        if new_url not in visited and new_url not in to_visit:
+            to_visit.append(new_url)
+    
+    
+    # get all the text from all the paragraphs and find words that have consecutive capital letters (to find full names)
+    name_counter = 0
+    paragraphs = soup.findAll('p')
+    for paragraph in paragraphs:
+        paragraph_info = paragraph.get_text()
+        consec_cap_words = re.findall(r"((?:[A-Z][A-Za-z]+\s)+(?:[A-Z][A-Za-z]+))", paragraph_info)
+        
+        # Check whether the consecutive capital letters are in the names of tennis.json
+        for consec_words in consec_cap_words:
+            single_words = consec_words.split()
+            num_of_words = len(single_words)
+            list = []
+            for number in range(num_of_words):
+                list.append(number)
+            for num in range(2, num_of_words+1):
+                for subset in itertools.combinations(list, num):
+                    full_name = ''
+                    for value in subset:
+                        if value == num_of_words - 1:
+                            full_name += single_words[value].upper()
+                            if full_name in names:
+                                task2_info.append(full_name)
+                                task3_info.append(full_name)
+                                task5_info.append(full_name)
+                                name_counter = 1
+                                total_game_diff[full_name]
+                                num_of_articles[full_name] += 1
+                                break
+                        else:
+                            full_name += single_words[value].upper() + ' '
+                    if name_counter == 1:
+                        break
+                if name_counter == 1:
+                    break
+            if name_counter == 1:
+                    break
+        if name_counter == 1: 
+            break        
+    
+    # Get the game scores from the text and check whether they are correct scores
+    score_counter = 0
+    for paragraph in paragraphs:
+        text = paragraph.get_text()
+        game_score = re.findall(r"(?:\(?\d+\W\d+\)?[\s.,]?){2,}", text)
+        for lst in game_score:
+            individual_tennis_set_list = re.findall(r"(\d+\W\d+[\s.,])", lst)
+            match_len = len(individual_tennis_set_list)
+            full_set = []
+            player_one_game_score = 0
+            player_two_game_score = 0
+            for each_set in individual_tennis_set_list:
+                pattern = re.compile(r"([\d]+)\W([\d]+)")
+                matches = pattern.finditer(each_set)
+                for match in matches:    
+                    set_num_one = int(match.group(1))
+                    set_num_two = int(match.group(2))
+                    
+                    #check whether each set score is valid
+                    if ((abs(set_num_one - set_num_two) >= 2 and (set_num_one == 6 or set_num_two ==6)) or (set_num_one >= 5 and set_num_two >= 5 and abs(set_num_one - set_num_two) == 2 ) 
+                        or (set_num_one == 6 and set_num_two ==7) or (set_num_one == 7 and set_num_two == 6)):
+                        full_set.append(str(set_num_one) + '-' + str(set_num_two))
+                        if name_counter == 1:
+                            total_game_diff[full_name] += set_num_one
+                            total_game_diff[full_name] -= set_num_two
+                    if set_num_one > set_num_two:
+                        player_one_game_score += 1
+                    else:
+                        player_two_game_score += 1
+            
+            #Check whether the number of sets played is valid based on the set scores
+            if match_len != 1:
+                if (player_two_game_score == match_len//2 + 1 or player_one_game_score == match_len//2 + 1 or 
+                    (player_one_game_score == match_len and match_len % 2 == 1) or (player_two_game_score == match_len and match_len % 2 == 1)):
+                        if len(full_set) == match_len:
+                            str_full_set = ''
+                            for num in range(len(full_set)):
+                                if num == len(full_set) - 1:
+                                    str_full_set += full_set[num]
+                                else:    
+                                    str_full_set += full_set[num] + ' '
+                            task2_info.append(str_full_set)
+                            score_counter = 1
+                            if name_counter == 1:
+                                num_of_valid_games[full_name] += 1
+                            break
+            if score_counter != 1:
+                total_game_diff[full_name] = 0
+            if score_counter == 1:
+                break          
+        if score_counter == 1:
+            break  
+    if len(task1_info) == 2:
+        task1.append(task1_info)
+    if len(task2_info) == 4:
+        task2.append(task2_info)
+ 
+# get the values for tasks 3 and 5 
+task5_names = []
+task5_df = pd.DataFrame(task5, columns = ['Full Name', 'Average Game Difference'])
+for key in total_game_diff:
+    task3_info = []
+    task5_info = []
+    if num_of_valid_games[key] != 0:
+        task3_info.append(key)
+        task5_info.append(key)
+        task5_names.append(key)
+        avg_game_diff = round((total_game_diff[key] / num_of_valid_games[key]),2)
+        task3_info.append(avg_game_diff)
+        task5_info.append(avg_game_diff)
+        if task3_info:
+            task3.append(task3_info)
+        for dictionary in tennis_data:
+            if dictionary['name'] == key:
+                win_percentage = dictionary['wonPct']
+                win_percent = ''
+                for num in range(len(win_percentage) - 1):
+                    win_percent += win_percentage[num]
+                task5_info.append(float(win_percent))
+    if task5_info:
+        task5.append(task5_info)
+
+
+#create all task dataframes and convert to csv if required
+task1_df = pd.DataFrame(task1, columns = ['URL', 'Headline'])
+task1_df.to_csv('task1.csv', index = False)
+file = pd.read_csv('task1.csv', encoding = 'ISO-8859-1')
+
+task2_df = pd.DataFrame(task2, columns = ['URL', 'Headline', 'player', 'Score'])
+task2_df.to_csv('task2.csv', index = False)
+file1 = pd.read_csv('task2.csv', encoding = 'ISO-8859-1')
+
+task3_df = pd.DataFrame(task3, columns = ['player', 'Avg_game_difference'])
+top_avg_game_diff = task3_df.sort_values(by = 'Avg_game_difference', ascending = False)
+top_avg_game_diff.index = range(len(top_avg_game_diff))
+
+#create task4 values
+for key in num_of_articles:
+    container = []
+    container.append(key)
+    container.append(num_of_articles[key])       
+    task4.append(container)
+
+task4_df = pd.DataFrame(task4, columns = ['Full Name', 'Number of Articles Written About'])
+sorted_num_of_articles = task4_df.sort_values(by = 'Number of Articles Written About', ascending = False)
+sorted_num_of_articles.index = range(len(sorted_num_of_articles))
+
+# print bar graph for task4
+plt.xticks(rotation='vertical')
+plt.bar(sorted_num_of_articles['Full Name'].head(5), sorted_num_of_articles['Number of Articles Written About'].head(5))
+plt.xlabel('Player Name')
+plt.ylabel('Number of Articles Written About')
+plt.title("Top 5 players with the most articles written for")
+plt.savefig('task4.png')
+
+plt.clf
+
+#Create task5 bar graph
+task5_df = pd.DataFrame(task5, columns = ['Full Name', 'Average Game Difference', 'Win Percentage'], index = task5_names)
+task5_df = task5_df.sort_values(by = 'Win Percentage', ascending = False)
+
+width = 0.45
+
+fig = plt.figure()
+ax = fig.add_subplot(111)
+ax2 = ax.twinx()
+task5_df['Win Percentage'].plot(kind='bar', color='red', ax=ax, width=width, position=1, label = "Win percentage", figsize = (20,7))
+task5_df['Average Game Difference'].plot(kind='bar', color='lightblue', ax=ax2, width=width, position=0, label = "Average game difference", figsize = (20,7))
+
+ax.grid()
+ax.set_xlabel("Player Names")
+ax.set_ylabel(r"Win Percentage")
+ax2.set_ylabel(r"Average Game Difference")
+ax.set_title("Players' win percentage and Average game score difference")
+plt.savefig('task5.png')
