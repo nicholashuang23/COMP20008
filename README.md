@@ -1,1 +1,1 @@
-# COMP20008
+COMP20008 -Elements of Data Processing Python Projects. Project 1 required a program to find specific details in a graph of URLs' with some visualisations. Project 2 required a implementation of blocking as well as implementation of different classification techniques.
