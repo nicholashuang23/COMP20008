@@ -1,0 +1,242 @@
+"""Comparing different classification algorithms"""
+import pandas as pd
+import matplotlib.pyplot as plt
+
+import numpy as np
+from sklearn import neighbors
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+from sklearn import preprocessing
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.impute import SimpleImputer
+
+
+
+world_df = pd.read_csv("world.csv")
+life_df = pd.read_csv("life.csv")
+
+full_df1 = pd.merge(world_df, life_df, on= 'Country Code')
+full_df1 = full_df1.drop(columns = ['Country', 'Year'])
+
+columns = []
+for num in range(len(full_df1.columns) - 1):
+    if num >= 3:
+        columns.append(full_df1.columns[num])
+        for num1 in range(len(full_df1)):
+            if full_df1.iloc[num1, num] == '..':
+                full_df1.iloc[num1, num] = np.nan
+
+
+
+data=full_df1[columns].astype(float)
+
+##get just the class labels
+classlabel=full_df1['Life expectancy at birth (years)']
+
+##randomly select 66% of the instances to be training and the rest to be testing
+X_train, X_test, y_train, y_test = train_test_split(data,classlabel, train_size=2/3, test_size=1/3, random_state=100)
+
+imputer_method = SimpleImputer(missing_values = np.nan, strategy = 'median')
+imputer_method = imputer_method.fit(X_train)
+X_train = imputer_method.transform(X_train)
+X_test = imputer_method.transform(X_test)
+
+#normalise the data to have 0 mean and unit variance using the library functions.  This will help for later
+#computation of distances between instances
+
+scaler = preprocessing.StandardScaler().fit(X_train)
+X_train=scaler.transform(X_train)
+X_test=scaler.transform(X_test)
+
+mean = scaler.mean_
+mean = mean.round(3)
+var = (scaler.scale_* scaler.scale_).round(3)
+var = var.round(3)
+median = data.median(axis = 0, skipna = True)
+median = median.round(3)
+
+
+
+dt = DecisionTreeClassifier(max_depth=4)
+dt.fit(X_train, y_train)
+
+y_pred=dt.predict(X_test)
+print("Accuracy of decision tree: " + str((accuracy_score(y_test, y_pred)).round(3)* 100) + "%")
+
+
+
+
+knn = neighbors.KNeighborsClassifier(n_neighbors=5)
+knn.fit(X_train, y_train)
+
+y_pred=knn.predict(X_test)
+print("Accuracy of k-nn (k=5): " + str((accuracy_score(y_test, y_pred)).round(3) * 100) + "%")
+
+
+
+
+knn = neighbors.KNeighborsClassifier(n_neighbors=10)
+knn.fit(X_train, y_train)
+
+y_pred=knn.predict(X_test)
+print("Accuracy of k-nn (k=10): " + str((accuracy_score(y_test, y_pred)).round(3)* 100) + "%")
+
+
+
+
+df = pd.DataFrame({'feature': columns, 'median': median, 'mean': mean, 'variance': var,})
+df = df.round(3)
+df.to_csv('task2a.csv', index = False)
+
+
+
+
+
+
+
+
+
+"""Testing feature engineering and selection with knn = 5"""
+import pandas as pd
+import matplotlib.pyplot as plt
+
+import numpy as np
+from sklearn import neighbors
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+from sklearn import preprocessing
+from sklearn.cluster import KMeans
+from sklearn.impute import SimpleImputer
+from sklearn.decomposition import PCA
+from sklearn.feature_selection import SelectKBest, mutual_info_classif
+import seaborn as sns
+
+world_df = pd.read_csv("world.csv")
+life_df = pd.read_csv("life.csv")
+
+full_df1 = pd.merge(world_df, life_df, on= 'Country Code')
+full_df1 = full_df1.drop(columns = ['Country', 'Year'])
+
+columns = []
+first_four_cols = []
+first_four_counter = 0
+for num in range(len(full_df1.columns) - 1):
+    if num >= 3:
+        columns.append(full_df1.columns[num])
+        if first_four_counter < 4:
+            first_four_cols.append(full_df1.columns[num])
+            first_four_counter += 1
+        for num1 in range(len(full_df1)):
+            if full_df1.iloc[num1, num] == '..':
+                full_df1.iloc[num1, num] = np.nan
+
+first_four_data = full_df1[first_four_cols].astype(float)
+
+data=full_df1[columns].astype(float)
+feature_eng_data = data
+
+
+
+next_cols = columns[1:]
+for col1 in columns:
+    for col2 in next_cols:
+        feature_eng_data[col1 + "*" + col2] = data[col1] * data[col2]
+    next_cols = next_cols[1:]
+
+##get just the class labels
+classlabel=full_df1['Life expectancy at birth (years)']
+
+
+#Taken from week 9 COMP20008 Workshop
+##randomly select 66% of the instances to be training and the rest to be testing
+X_train, X_test, y_train, y_test = train_test_split(feature_eng_data,classlabel, train_size=2/3, test_size=1/3, random_state=100)
+
+imputer_method = SimpleImputer(missing_values = np.nan, strategy = 'median')
+imputer_method = imputer_method.fit(X_train)
+X_train = imputer_method.transform(X_train)
+X_test = imputer_method.transform(X_test)
+
+#normalise the data to have 0 mean and unit variance using the library functions.  This will help for later
+#computation of distances between instances
+
+scaler = preprocessing.StandardScaler().fit(X_train)
+X_train=scaler.transform(X_train)
+X_test=scaler.transform(X_test)
+
+
+#Add cluster infomation to 
+X_train = pd.DataFrame(X_train)
+sns.pairplot(X_train)
+values = X_train.values
+clusters = KMeans(n_clusters = 5).fit(values)
+X_train['cluster'] = clusters.labels_
+X_train = X_train.to_numpy()
+
+X_test = pd.DataFrame(X_test)
+values = X_test.values
+clusters = KMeans(n_clusters = 5).fit(values)
+X_test['cluster'] = clusters.labels_
+X_test = X_test.to_numpy()
+
+
+K_best = SelectKBest(mutual_info_classif, k=4)
+K_best = K_best.fit(X_train, y_train)
+
+X_train = K_best.transform(X_train)
+X_test = K_best.transform(X_test)
+
+
+knn = neighbors.KNeighborsClassifier(n_neighbors=5)
+knn.fit(X_train, y_train)
+
+y_pred=knn.predict(X_test)
+print("Accuracy of feature engineering: " + str((accuracy_score(y_test, y_pred)).round(3) * 100) + "%")
+
+
+
+X_train_pca, X_test_pca, y_train_pca, y_test_pca = train_test_split(data,classlabel, train_size=2/3, test_size=1/3, random_state=100)
+
+imputer_method = SimpleImputer(missing_values = np.nan, strategy = 'median')
+imputer_method = imputer_method.fit(X_train_pca)
+X_train_pca = imputer_method.transform(X_train_pca)
+X_test_pca = imputer_method.transform(X_test_pca)
+
+
+#normalise the data to have 0 mean and unit variance using the library functions.  This will help for later
+#computation of distances between instances
+
+scaler = preprocessing.StandardScaler().fit(X_train_pca)
+X_train_pca=scaler.transform(X_train_pca)
+X_test_pca=scaler.transform(X_test_pca)
+
+pca = PCA(n_components = 4).fit(X_train_pca)
+X_train_pca = pca.transform(X_train_pca)
+X_test_pca = pca.transform(X_test_pca)
+
+knn = neighbors.KNeighborsClassifier(n_neighbors=5)
+knn.fit(X_train_pca, y_train_pca)
+
+y_pred=knn.predict(X_test_pca)
+print("Accuracy of PCA: " + str((accuracy_score(y_test_pca, y_pred)).round(3) * 100) + "%")
+
+
+
+X_train, X_test, y_train, y_test = train_test_split(first_four_data,classlabel, train_size=2/3, test_size=1/3, random_state=100)
+
+imputer_method = SimpleImputer(missing_values = np.nan, strategy = 'median')
+imputer_method = imputer_method.fit(X_train)
+X_train = imputer_method.transform(X_train)
+X_test = imputer_method.transform(X_test)
+
+#normalise the data to have 0 mean and unit variance using the library functions.  This will help for later
+#computation of distances between instances
+
+scaler = preprocessing.StandardScaler().fit(X_train)
+X_train=scaler.transform(X_train)
+X_test=scaler.transform(X_test)
+
+knn = neighbors.KNeighborsClassifier(n_neighbors=5)
+knn.fit(X_train, y_train)
+
+y_pred=knn.predict(X_test)
+print("Accuracy of first four features: " + str((accuracy_score(y_test, y_pred)).round(3) * 100) + "%")
