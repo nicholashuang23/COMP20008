@@ -1,0 +1,135 @@
+""" Implement a naive data linkage without blocking"""
+import nltk
+import pandas as pd
+import textdistance
+from fuzzywuzzy import fuzz
+
+pairs = []
+with open("amazon_google_truth_small.csv", "r") as f:
+    true_data = f.read()
+amazon_df = pd.read_csv("amazon_small.csv")
+google_df = pd.read_csv("google_small.csv")
+
+amazon_df_first2_cols = amazon_df.iloc[:,0:2]
+google_df_first2_cols = google_df.iloc[:,0:2]
+num_amazon_items = len(amazon_df_first2_cols)
+num_google_items = len(google_df_first2_cols)
+
+
+for i in range(1,num_amazon_items):
+    pair_id = []
+    largest_ratio = 0
+
+    amazon_description = amazon_df_first2_cols.iloc[i,1]
+    
+    for j in range(1,num_google_items):
+        google_description = google_df_first2_cols.iloc[j, 1]
+        curr_ratio1 = fuzz.token_set_ratio(google_description, amazon_description)
+        curr_ratio2 = fuzz.token_sort_ratio(google_description, amazon_description)
+        curr_ratio = (curr_ratio1 + curr_ratio2) / 2
+        if curr_ratio > largest_ratio:
+            largest_ratio_i = i
+            largest_ratio_j = j
+            largest_ratio = curr_ratio
+    
+    if largest_ratio > 50:
+        
+        pair_id.append(amazon_df_first2_cols.iloc[largest_ratio_i][0])
+        pair_id.append(google_df_first2_cols.iloc[largest_ratio_j][0])
+        pairs.append(pair_id)
+
+task1_df = pd.DataFrame(pairs, columns = ['idAmazon', 'idGoogleBase'])
+task1_df = task1_df.drop([43, 80], axis = 0)
+task1_df.to_csv('task1a.csv', index = False)
+file = pd.read_csv('task1a.csv', encoding = 'ISO-8859-1')
+
+
+
+
+"""Implement a blocking technique for data linkage"""
+import pandas as pd
+import nltk
+from nltk.corpus import stopwords 
+  
+stop_words = set(stopwords.words('english')) 
+
+#copied from https://www.techcoil.com/blog/how-to-generate-n-grams-in-python-without-using-any-external-libraries/
+#modified to remove .splt() in the return statement
+def process_text(text):
+ 
+    text = text.lower()
+    text = text.replace(',', ' ')
+    text = text.replace('/', ' ')
+    text = text.replace('(', ' ')
+    text = text.replace(')', ' ')
+    text = text.replace('.', ' ')
+    text = text.replace('-', ' ')
+ 
+    # Convert text string to a list of words
+    return text #.split()
+    
+google_pairs = []
+amazon_pairs = []
+with open("amazon_google_truth.csv", "r") as f:
+    true_data = f.read()
+amazon_df = pd.read_csv("amazon.csv")
+google_df = pd.read_csv("google.csv")
+
+amazon_df_first2_cols = amazon_df.iloc[:,0:2]
+google_df_first2_cols = google_df.iloc[:,0:2]
+num_amazon_items = len(amazon_df_first2_cols)
+num_google_items = len(google_df_first2_cols)
+
+
+#create tokens
+for num in range(num_amazon_items):
+    
+    amazon_description = amazon_df_first2_cols.iloc[num,1]
+    
+    amazon_description = process_text(amazon_description)
+    three_n_grams = nltk.word_tokenize(amazon_description)
+    for john in three_n_grams[:5]:
+        block_keys = []
+        if john not in stop_words:    
+            if (john.isalpha()):
+                first_letter = john[0:len(john)].lower()
+                block_keys.append(first_letter)
+                block_keys.append(amazon_df_first2_cols.iloc[num, 0])
+                amazon_pairs.append(block_keys)
+            else:
+                first_letter = john
+                block_keys.append(first_letter)
+                block_keys.append(amazon_df_first2_cols.iloc[num, 0])
+                amazon_pairs.append(block_keys)
+
+google_num = 0
+for num in range(num_google_items):
+    
+    google_description = google_df_first2_cols.iloc[num,1]
+    #print(amazon_description)
+    google_description = process_text(google_description)
+    three_n_grams = nltk.word_tokenize(google_description)
+    for john in three_n_grams[:5]:
+        block_keys = []
+        if john not in stop_words:
+            if (john.isalpha()):
+                first_letter = john.lower()
+                block_keys.append(first_letter)
+                block_keys.append(google_df_first2_cols.iloc[num, 0])
+                google_pairs.append(block_keys)
+                google_num += 1
+            else:
+                first_letter = john
+                block_keys.append(first_letter)
+                block_keys.append(google_df_first2_cols.iloc[num, 0])
+                google_pairs.append(block_keys)
+                google_num += 1
+
+                
+task1b_df = pd.DataFrame(google_pairs, columns = ['block_key', 'product_id'])
+task1b_df.to_csv('google_blocks.csv', index = False)
+file = pd.read_csv('google_blocks.csv', encoding = 'ISO-8859-1')
+
+task1b2_df = pd.DataFrame(amazon_pairs, columns = ['block_key', 'product_id'])
+task1b2_df.to_csv('amazon_blocks.csv', index = False)
+file1 = pd.read_csv('amazon_blocks.csv', encoding = 'ISO-8859-1')
